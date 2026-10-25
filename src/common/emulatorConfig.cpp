@@ -26,6 +26,7 @@ void Load(const ConfigOptions& cfg) {
 	EXIT_IF(cfg.user_name.empty() || cfg.user_name.size() > MAX_USER_NAME_LENGTH);
 	EXIT_IF(!IsConfiguredUserIdValid(cfg.user_id));
 	EXIT_IF(cfg.controller_speaker_volume > 100 || cfg.controller_vibration_intensity > 100);
+	EXIT_IF(cfg.audio_volume > 100);
 	EXIT_IF(cfg.keyboard_player > static_cast<uint32_t>(MAX_PLAYERS));
 
 	*g_config = cfg;
@@ -50,6 +51,14 @@ int32_t GetUserId() {
 
 const std::string& GetAudioInputDevice() {
 	return g_config->audio_input_device;
+}
+
+const std::string& GetAudioOutputDevice() {
+	return g_config->audio_output_device;
+}
+
+uint32_t GetAudioVolume() {
+	return g_config->audio_volume;
 }
 
 const std::optional<ControllerColor>& GetControllerColor() {

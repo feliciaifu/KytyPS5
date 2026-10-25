@@ -120,6 +120,8 @@ public:
 	QString                user_name                   = "Kyty";
 	int                    user_id                     = Config::DEFAULT_USER_ID;
 	QString                audio_input_device;
+	QString                audio_output_device;
+	int                    audio_volume                = 80;
 	PresentMode            present_mode                = PresentMode::Mailbox;
 	int                    gpu_index                   = -1;
 	bool                   fullscreen_enabled          = false;
@@ -161,6 +163,8 @@ public:
 		user_name                   = other.user_name;
 		user_id                     = other.user_id;
 		audio_input_device          = other.audio_input_device;
+		audio_output_device         = other.audio_output_device;
+		audio_volume                = other.audio_volume;
 		present_mode                = other.present_mode;
 		gpu_index                   = other.gpu_index;
 		fullscreen_enabled          = other.fullscreen_enabled;

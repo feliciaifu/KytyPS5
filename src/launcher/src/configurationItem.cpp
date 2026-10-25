@@ -167,7 +167,7 @@ ConfigurationItem::ConfigurationItem(std::unique_ptr<Configuration> info, QTreeW
 		setData(SizeColumn, Qt::UserRole, bytes);
 		if (bytes >= 0) {
 			setText(SizeColumn,
-			        QLocale().formattedDataSize(bytes, 2, QLocale::DataSizeTraditionalFormat));
+			        QLocale().formattedDataSize(bytes, 1, QLocale::DataSizeTraditionalFormat));
 		}
 		watcher->deleteLater();
 	});

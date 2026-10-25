@@ -1,6 +1,7 @@
 #ifndef MAIN_DIALOG_H
 #define MAIN_DIALOG_H
 
+#include <QByteArray>
 #include <QDialog>
 #include <QString>
 
@@ -28,6 +29,10 @@ public:
 	static void ReadSettings(QSettings& s);
 
 	void resizeEvent(QResizeEvent* event) override;
+
+#if defined(_WIN32)
+	bool nativeEvent(const QByteArray& event_type, void* message, qintptr* result) override;
+#endif
 
 private:
 	MainDialogPrivate* m_p = nullptr;

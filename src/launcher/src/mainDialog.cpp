@@ -6,6 +6,7 @@
 #include "configurationListWidget.h"
 #include "controllerPreview.h"
 #include "gameContent.h"
+#include "launcherShell.h"
 #include "titleSound.h"
 #include "updateChecker.h"
 
@@ -30,14 +31,15 @@
 #include <QStyleHints>
 #include <QTextStream>
 #include <QVariant>
+#include <QVBoxLayout>
+#include <QWindow>
 #include <QtCore>
 
 #include <cstdint>
 
-#include "ui_main_dialog.h"
-
 #if defined(_WIN32)
 #include <windows.h> // IWYU pragma: keep
+#include <windowsx.h> // IWYU pragma: keep
 #endif
 
 // IWYU pragma: no_include <minwindef.h>
@@ -64,7 +66,6 @@ constexpr DWORD CMD_Y_CHARS = 1000;
 constexpr char SETTINGS_MAIN_DIALOG[]        = "MainDialog";
 constexpr char SETTINGS_MAIN_LAST_GEOMETRY[] = "geometry";
 constexpr char SETTINGS_CHECK_UPDATES[]      = "check_updates_on_startup";
-constexpr char SETTINGS_THEME[]              = "theme";
 
 class MainDialogPrivate: public QObject {
 	Q_OBJECT
@@ -89,24 +90,14 @@ public:
 private:
 	static QByteArray g_last_geometry;
 	static bool       g_check_updates_on_startup;
-	static int        g_theme;
 
-	static void ApplyTheme(int theme) {
-		auto scheme = Qt::ColorScheme::Unknown;
-		switch (theme) {
-			case 1: scheme = Qt::ColorScheme::Dark; break;
-			case 2: scheme = Qt::ColorScheme::Light; break;
-			default: break;
-		}
-		QApplication::styleHints()->setColorScheme(scheme);
-	}
-
-	Ui::MainDialog* m_ui             = {nullptr};
-	MainDialog*     m_main_dialog    = nullptr;
-	UpdateChecker*  m_update_checker = nullptr;
-	ControllerPreview m_controller_preview;
-	TitleSound      m_title_sound;
-	QString         m_interpreter;
+	ConfigurationListWidget* m_controller = nullptr;
+	LauncherShell*           m_shell = nullptr;
+	MainDialog*              m_main_dialog = nullptr;
+	UpdateChecker*           m_update_checker = nullptr;
+	ControllerPreview        m_controller_preview;
+	TitleSound               m_title_sound;
+	QString                  m_interpreter;
 
 	QProcess m_process;
 
@@ -115,7 +106,6 @@ private:
 
 QByteArray MainDialogPrivate::g_last_geometry;
 bool       MainDialogPrivate::g_check_updates_on_startup = true;
-int        MainDialogPrivate::g_theme                    = 0;
 
 MainDialog::MainDialog(QWidget* parent): QDialog(parent), m_p(new MainDialogPrivate(this)) {
 	m_p->Setup(this);
@@ -123,57 +113,67 @@ MainDialog::MainDialog(QWidget* parent): QDialog(parent), m_p(new MainDialogPriv
 
 MainDialogPrivate::~MainDialogPrivate() {
 	m_process.disconnect(this);
-	delete m_ui;
 }
 
 void MainDialogPrivate::Setup(MainDialog* main_dialog) {
-	m_ui = new Ui::MainDialog;
-	m_ui->setupUi(main_dialog);
-	m_ui->widget->SetControllerPreview(&m_controller_preview);
-
 	m_main_dialog = main_dialog;
-	m_update_checker = new UpdateChecker(main_dialog);
-	m_ui->check_updates_on_startup->setChecked(g_check_updates_on_startup);
-	m_ui->theme_combo->setCurrentIndex(g_theme);
-	ApplyTheme(g_theme);
-	m_ui->check_updates_link->setVisible(UpdateChecker::IsSupported());
-	m_ui->check_updates_on_startup->setVisible(UpdateChecker::IsSupported());
 
-	main_dialog->setWindowFlags(Qt::Dialog /*| Qt::MSWindowsFixedSizeDialogHint*/);
+	m_controller = new ConfigurationListWidget(main_dialog);
+	m_controller->hide();
+	m_controller->SetControllerPreview(&m_controller_preview);
+
+	m_shell = new LauncherShell(m_controller, main_dialog);
+	auto* layout = new QVBoxLayout(main_dialog);
+	layout->setContentsMargins(0, 0, 0, 0);
+	layout->setSpacing(0);
+	layout->addWidget(m_shell);
+
+	main_dialog->setWindowTitle(QStringLiteral("KytyPS5 Launcher"));
+	main_dialog->setWindowFlags(Qt::FramelessWindowHint | Qt::Dialog |
+	                            Qt::WindowMinimizeButtonHint | Qt::WindowMaximizeButtonHint |
+	                            Qt::WindowCloseButtonHint);
+	main_dialog->setMinimumSize(1180, 720);
+	if (g_last_geometry.isEmpty()) {
+		main_dialog->resize(1440, 900);
+	}
+
+	m_update_checker = new UpdateChecker(main_dialog);
+	m_shell->SetCheckOnStartup(g_check_updates_on_startup);
+	m_shell->SetCheckUpdatesSupported(UpdateChecker::IsSupported());
 
 	connect(main_dialog, &MainDialog::Start, this, &MainDialogPrivate::FindInterpreter,
 	        Qt::QueuedConnection);
-	connect(m_ui->widget, &ConfigurationListWidget::Select, this, [this]() {
+	connect(m_controller, &ConfigurationListWidget::Select, this, [this]() {
 		Update();
-		const auto* item = m_ui->widget->GetSelectedItem();
+		const auto* item = m_controller->GetSelectedItem();
 		m_title_sound.SetTitle(m_process.state() == QProcess::NotRunning && item != nullptr
 		                           ? item->GetInfo().basedir
 		                           : QString());
 	});
-	connect(m_ui->widget, &ConfigurationListWidget::PreviewControllerColor, this,
+	connect(m_controller, &ConfigurationListWidget::PreviewControllerColor, this,
 	        [this](const QString& color) {
 		        if (m_process.state() == QProcess::NotRunning) {
 			        m_controller_preview.SetColor(color);
 		        }
 	        });
-	connect(m_ui->widget, &ConfigurationListWidget::Run, this, &MainDialogPrivate::Run);
-	connect(m_ui->check_updates_link, &QLabel::linkActivated, this,
-	        [this](const QString&) { m_update_checker->Check(true); });
-	connect(m_update_checker, &UpdateChecker::CheckingChanged, m_ui->check_updates_link,
-	        &QLabel::setDisabled);
-	connect(m_update_checker, &UpdateChecker::InstallingChanged, this, &MainDialogPrivate::Update);
-	connect(m_ui->check_updates_on_startup, &QCheckBox::toggled, this, [this](bool checked) {
+	connect(m_controller, &ConfigurationListWidget::Run, this, &MainDialogPrivate::Run);
+	connect(m_shell, &LauncherShell::CheckForUpdatesRequested, this,
+	        [this]() { m_update_checker->Check(true); });
+	connect(m_shell, &LauncherShell::CheckOnStartupChanged, this, [this](bool checked) {
 		g_check_updates_on_startup = checked;
-		m_ui->widget->WriteSettings();
+		m_controller->WriteSettings();
 	});
-	connect(m_ui->theme_combo, &QComboBox::currentIndexChanged, this, [this](int index) {
-		g_theme = index;
-		ApplyTheme(index);
-		m_ui->widget->WriteSettings();
+	connect(m_update_checker, &UpdateChecker::CheckingChanged, m_shell,
+	        &LauncherShell::SetCheckingForUpdates);
+	connect(m_update_checker, &UpdateChecker::InstallingChanged, m_shell,
+	        &LauncherShell::SetInstalling);
+	connect(m_update_checker, &UpdateChecker::InstallingChanged, this, &MainDialogPrivate::Update);
+	connect(&m_controller_preview, &ControllerPreview::StateChanged, this, [this]() {
+		m_shell->SetControllerName(m_controller_preview.DeviceName());
 	});
 	connect(main_dialog, &MainDialog::Resize, [this]() {
 		g_last_geometry = m_main_dialog->saveGeometry();
-		m_ui->widget->WriteSettings();
+		m_controller->WriteSettings();
 	});
 
 	connect(&m_process, &QProcess::stateChanged, this, [this](QProcess::ProcessState state) {
@@ -186,9 +186,10 @@ void MainDialogPrivate::Setup(MainDialog* main_dialog) {
 		}
 	});
 
-	m_ui->label_settings_file->setText(tr("Settings file: ") + m_ui->widget->GetSettingsFile());
-
 	m_main_dialog->restoreGeometry(g_last_geometry);
+	if (m_main_dialog->width() < 1280 || m_main_dialog->height() < 800) {
+		m_main_dialog->resize(1440, 900);
+	}
 
 	Update();
 }
@@ -204,11 +205,10 @@ void MainDialogPrivate::FindInterpreter() {
 	}
 
 	bool found = QFile::exists(m_interpreter);
-	m_ui->widget->SetRuntimeDirectory(QFileInfo(m_interpreter).absolutePath());
+	m_controller->SetRuntimeDirectory(QFileInfo(m_interpreter).absolutePath());
+	m_shell->SetEmulatorPath(m_interpreter);
 
 	if (found) {
-		m_ui->label_Interpreter->setText(tr("Emulator: ") + m_interpreter);
-
 		QProcess test;
 		test.setProgram(m_interpreter);
 		test.start();
@@ -218,8 +218,12 @@ void MainDialogPrivate::FindInterpreter() {
 		auto lines  = output.split(QRegularExpression("[\r\n]"), Qt::SkipEmptyParts);
 
 		if (lines.count() >= 2) {
-			m_ui->label_Version->setText(
-			    tr("Version: ") + (lines.at(0).startsWith("exe_name") ? lines.at(1) : lines.at(0)));
+			const auto version_line =
+			    lines.at(0).startsWith("exe_name") ? lines.at(1) : lines.at(0);
+			const auto match =
+			    QRegularExpression(QStringLiteral("ver\\s*=\\s*([0-9.]+)")).match(version_line);
+			const auto version = match.hasMatch() ? match.captured(1) : QStringLiteral("0.0.0");
+			m_shell->SetEmulatorVersion(version, version_line);
 		} else {
 			found = false;
 		}
@@ -231,15 +235,8 @@ void MainDialogPrivate::FindInterpreter() {
 		return;
 	}
 
-	// Prompt for a game folder when none are configured, but keep the launcher
-	// open if the user dismisses the dialog (quitting here can segfault during
-	// nested modal shutdown / background compatibility load).
-	m_ui->widget->EnsureGameDirectory();
-
-	m_ui->label_settings_file->setText(tr("Settings file: ") + m_ui->widget->GetSettingsFile());
-
 	Update();
-	if (m_ui->check_updates_on_startup->isChecked()) {
+	if (g_check_updates_on_startup) {
 		m_update_checker->Check(false);
 	}
 }
@@ -265,6 +262,10 @@ static QStringList CreateEmulatorArgs(const Configuration& info) {
 	if (!info.audio_input_device.isEmpty()) {
 		args << "--mic" << info.audio_input_device;
 	}
+	if (!info.audio_output_device.isEmpty()) {
+		args << "--audio-device" << info.audio_output_device;
+	}
+	args << "--audio-volume" << QString::number(info.audio_volume);
 	if (!info.controller.color.isEmpty()) {
 		args << "--controller-color" << info.controller.color;
 	}
@@ -525,7 +526,6 @@ void MainDialogPrivate::WriteSettings(QSettings& s) {
 		s.setValue(SETTINGS_MAIN_LAST_GEOMETRY, g_last_geometry);
 	}
 	s.setValue(SETTINGS_CHECK_UPDATES, g_check_updates_on_startup);
-	s.setValue(SETTINGS_THEME, g_theme);
 
 	s.endGroup();
 }
@@ -535,10 +535,6 @@ void MainDialogPrivate::ReadSettings(QSettings& s) {
 
 	g_last_geometry = s.value(SETTINGS_MAIN_LAST_GEOMETRY, g_last_geometry).toByteArray();
 	g_check_updates_on_startup = s.value(SETTINGS_CHECK_UPDATES, true).toBool();
-	g_theme                    = s.value(SETTINGS_THEME, 0).toInt();
-	if (g_theme < 0 || g_theme > 2) {
-		g_theme = 0;
-	}
 
 	s.endGroup();
 }
@@ -547,7 +543,7 @@ void MainDialogPrivate::Run() {
 	if (m_update_checker->IsInstalling()) {
 		return;
 	}
-	m_running_item = m_ui->widget->GetSelectedItem();
+	m_running_item = m_controller->GetSelectedItem();
 	if (m_running_item == nullptr) {
 		return;
 	}
@@ -556,14 +552,14 @@ void MainDialogPrivate::Run() {
 	m_controller_preview.SetSuspended(true);
 	m_title_sound.SetTitle({});
 
-	auto info = m_ui->widget->CreateConfiguration(*m_running_item);
+	auto info = m_controller->CreateConfiguration(*m_running_item);
 	m_main_dialog->RunInterpreter(&m_process, *info);
 
 	Update();
 }
 
 void MainDialogPrivate::Update() {
-	const auto* item = m_ui->widget->GetSelectedItem();
+	const auto* item = m_controller->GetSelectedItem();
 
 	bool run_enabled = (m_process.state() == QProcess::NotRunning && item != nullptr &&
 	                    !m_update_checker->IsInstalling());
@@ -574,13 +570,55 @@ void MainDialogPrivate::Update() {
 		run_enabled      = !dir.isEmpty() && (QDir(dir).exists() || GameContent::IsArchive(dir));
 	}
 
-	m_ui->widget->SetRunEnabled(run_enabled);
+	m_controller->SetRunEnabled(run_enabled);
+	m_shell->SetRunEnabled(run_enabled);
 	if (m_process.state() != QProcess::NotRunning) {
 		m_controller_preview.SetSuspended(true);
 		return;
 	}
 	m_controller_preview.SetSuspended(false);
-	m_controller_preview.SetColor(m_ui->widget->GetGlobalControllerColor());
+	m_controller_preview.SetColor(m_controller->GetGlobalControllerColor());
+	m_shell->SetControllerName(m_controller_preview.DeviceName());
 }
+
+#if defined(_WIN32)
+bool MainDialog::nativeEvent(const QByteArray& event_type, void* message, qintptr* result) {
+	if (event_type == "windows_generic_MSG" || event_type == "windows_dispatcher_MSG") {
+		auto* msg = static_cast<MSG*>(message);
+		if (msg->message == WM_NCHITTEST && !isMaximized() && !isFullScreen()) {
+			constexpr int border = 7;
+			const qreal   dpr    = devicePixelRatioF();
+			const QPoint  pos    = mapFromGlobal(
+			    QPointF(GET_X_LPARAM(msg->lParam) / dpr, GET_Y_LPARAM(msg->lParam) / dpr).toPoint());
+			const bool left   = pos.x() < border;
+			const bool right  = pos.x() >= width() - border;
+			const bool top    = pos.y() < border;
+			const bool bottom = pos.y() >= height() - border;
+
+			if (top && left) {
+				*result = HTTOPLEFT;
+			} else if (top && right) {
+				*result = HTTOPRIGHT;
+			} else if (bottom && left) {
+				*result = HTBOTTOMLEFT;
+			} else if (bottom && right) {
+				*result = HTBOTTOMRIGHT;
+			} else if (left) {
+				*result = HTLEFT;
+			} else if (right) {
+				*result = HTRIGHT;
+			} else if (top) {
+				*result = HTTOP;
+			} else if (bottom) {
+				*result = HTBOTTOM;
+			} else {
+				return false;
+			}
+			return true;
+		}
+	}
+	return QDialog::nativeEvent(event_type, message, result);
+}
+#endif
 
 #include "mainDialog.moc"

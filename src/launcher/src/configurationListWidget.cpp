@@ -293,6 +293,186 @@ ConfigurationListWidget::~ConfigurationListWidget() {
 	delete m_ui;
 }
 
+QTreeWidget* ConfigurationListWidget::GetTreeWidget() const {
+	return m_ui->cfgs_list;
+}
+
+QList<ConfigurationItem*> ConfigurationListWidget::GetItems() const {
+	QList<ConfigurationItem*> items;
+	items.reserve(m_ui->cfgs_list->topLevelItemCount());
+	for (int index = 0; index < m_ui->cfgs_list->topLevelItemCount(); index++) {
+		if (auto* item = static_cast<ConfigurationItem*>(m_ui->cfgs_list->topLevelItem(index));
+		    item != nullptr) {
+			items.append(item);
+		}
+	}
+	return items;
+}
+
+void ConfigurationListWidget::SelectItemByPointer(ConfigurationItem* item) {
+	if (item == nullptr) {
+		m_ui->cfgs_list->setCurrentItem(nullptr);
+		return;
+	}
+	if (m_ui->cfgs_list->currentItem() == item) {
+		SelectItem(item);
+		return;
+	}
+	m_ui->cfgs_list->setCurrentItem(item);
+	m_ui->cfgs_list->scrollToItem(item);
+}
+
+void ConfigurationListWidget::RequestRun() {
+	if (m_run_enabled && m_selected_item != nullptr) {
+		emit Run();
+	}
+}
+
+void ConfigurationListWidget::EditSelectedGame() {
+	edit_configuration();
+}
+
+void ConfigurationListWidget::DeleteSelectedGame() {
+	delete_configuartion();
+}
+
+void ConfigurationListWidget::OpenSelectedGameFolder() {
+	open_game_folder();
+}
+
+void ConfigurationListWidget::OpenSelectedSaveDataFolder() {
+	if (m_selected_item == nullptr) {
+		return;
+	}
+	const auto dirs = GetSaveDataDirs(m_selected_item->GetInfo());
+	if (dirs.isEmpty()) {
+		QMessageBox::information(this, tr("Save data"),
+		                         tr("No local save data was found for this game."));
+		return;
+	}
+	QDesktopServices::openUrl(QUrl::fromLocalFile(dirs.first()));
+}
+
+void ConfigurationListWidget::RemoveSelectedSaveData() {
+	remove_save_data();
+}
+
+void ConfigurationListWidget::CompressSelectedGame() {
+	compress_game();
+}
+
+void ConfigurationListWidget::ShowPatchesForSelected() {
+	if (m_selected_item == nullptr) {
+		return;
+	}
+	const auto& info = m_selected_item->GetInfo();
+	if (!Cheats::IsSupportedTitleId(info.title_id)) {
+		QMessageBox::information(this, tr("Cheats"),
+		                         tr("Cheats are not available for this title yet."));
+		return;
+	}
+	auto* dialog = new PatchesDialog(info, this);
+	dialog->show();
+}
+
+void ConfigurationListWidget::ShowAdditionalContentForSelected() {
+	if (m_selected_item == nullptr) {
+		return;
+	}
+	auto* dialog = new AdditionalContentDialog(m_selected_item->GetInfo(), m_addons_dir, this);
+	dialog->show();
+}
+
+void ConfigurationListWidget::EditGlobalSettings() {
+	edit_global_settings();
+}
+
+void ConfigurationListWidget::EditInputMapping() {
+	edit_input_mapping();
+}
+
+void ConfigurationListWidget::AddGameDirectoryInteractive(QWidget* parent) {
+	const auto dir = QFileDialog::getExistingDirectory(
+	    parent, tr("Add game directory"), QDir::homePath(),
+	    QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks);
+	if (!dir.isEmpty()) {
+		AddGameDirectory(dir);
+	}
+}
+
+void ConfigurationListWidget::AddGameDirectory(const QString& dir) {
+	const auto normalized = NormalizeGameDirectory(dir);
+	if (normalized.isEmpty()) {
+		return;
+	}
+	for (const auto& existing: m_game_dirs) {
+		if (PathKey(existing) == PathKey(normalized)) {
+			return;
+		}
+	}
+	m_game_dirs.append(normalized);
+	WriteSettings();
+	ScanGameDirectory();
+}
+
+void ConfigurationListWidget::RemoveGameDirectory(const QString& dir) {
+	const auto key = PathKey(dir);
+	for (int index = 0; index < m_game_dirs.size(); index++) {
+		if (PathKey(m_game_dirs.at(index)) == key) {
+			m_game_dirs.removeAt(index);
+			break;
+		}
+	}
+	WriteSettings();
+	ScanGameDirectory();
+}
+
+bool ConfigurationListWidget::CanEditCompatibility(const ConfigurationItem& item) const {
+	return m_compatibility != nullptr && m_compatibility->IsLocal() &&
+	       !item.GetInfo().title_id.trimmed().isEmpty();
+}
+
+void ConfigurationListWidget::SetCompatibilityStatus(const QString& title_id,
+                                                     Configuration::GameStatus status) {
+	if (m_compatibility == nullptr || !m_compatibility->IsLocal() ||
+	    title_id.trimmed().isEmpty()) {
+		return;
+	}
+	m_compatibility->SetStatus(title_id, status);
+	const auto key = title_id.trimmed().toUpper();
+	for (auto* item: GetItems()) {
+		if (item->GetInfo().title_id.trimmed().toUpper() == key) {
+			item->GetInfo().game_status = status;
+			item->Update();
+		}
+	}
+	emit ItemsChanged();
+}
+
+void ConfigurationListWidget::SetCompatibilityComment(const QString& title_id,
+                                                      const QString& comment) {
+	if (m_compatibility == nullptr || !m_compatibility->IsLocal() ||
+	    title_id.trimmed().isEmpty()) {
+		return;
+	}
+	m_compatibility->SetComment(title_id, comment);
+	const auto key = title_id.trimmed().toUpper();
+	for (auto* item: GetItems()) {
+		if (item->GetInfo().title_id.trimmed().toUpper() == key) {
+			item->GetInfo().game_comment = comment;
+			item->Update();
+		}
+	}
+	emit ItemsChanged();
+}
+
+void ConfigurationListWidget::OpenSettingsFileFolder() {
+	if (m_settings_file.isEmpty()) {
+		return;
+	}
+	QDesktopServices::openUrl(QUrl::fromLocalFile(QFileInfo(m_settings_file).absolutePath()));
+}
+
 void ConfigurationListWidget::changeEvent(QEvent* event) {
 	QWidget::changeEvent(event);
 	if (event->type() == QEvent::ApplicationPaletteChange || event->type() == QEvent::PaletteChange) {
@@ -444,6 +624,7 @@ void ConfigurationListWidget::ApplyCompatibility() {
 	if (sorting_enabled) {
 		m_ui->cfgs_list->sortItems(sort_column, sort_order);
 	}
+	emit ItemsChanged();
 }
 
 std::unique_ptr<Configuration>
@@ -747,6 +928,15 @@ void ConfigurationListWidget::ScanGameDirectory() {
 			continue;
 		}
 
+		// A configured folder can be the game itself. Treat it as a game and do not descend
+		// into it: game roots contain huge data trees and sometimes an extracted "decrypted"
+		// eboot that must not be picked up instead of the real app0.
+		if (root.exists(eboot_name)) {
+			const auto path = NormalizeGameDirectory(root.absolutePath());
+			add_game(root.absolutePath(), path, {}, root.dirName(), false);
+			continue;
+		}
+
 		scan_archives(root, root);
 		QList<QDir> pending_dirs;
 		const auto  root_subdirs =
@@ -791,6 +981,7 @@ void ConfigurationListWidget::ScanGameDirectory() {
 	}
 	m_ui->cfgs_list->setCurrentItem(selected_item);
 	SelectItem(selected_item);
+	emit ItemsChanged();
 }
 
 void ConfigurationListWidget::edit_configuration() {
@@ -1218,6 +1409,7 @@ void ConfigurationListWidget::SelectItem(QTreeWidgetItem* witem) {
 		m_ui->edit_button->setEnabled(false);
 		m_ui->delete_button->setEnabled(false);
 		emit Select();
+		emit SelectionChanged(nullptr);
 		return;
 	}
 
@@ -1228,6 +1420,7 @@ void ConfigurationListWidget::SelectItem(QTreeWidgetItem* witem) {
 	m_ui->game_views->SetBackgroundImage(item->GetInfo().basedir);
 
 	emit Select();
+	emit SelectionChanged(item);
 }
 
 void ConfigurationListWidget::list_itemDoubleClicked(QTreeWidgetItem* witem, int /*column*/) {

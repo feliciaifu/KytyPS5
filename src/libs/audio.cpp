@@ -62,6 +62,32 @@ static bool audio_out_port_type_is_valid(int type) {
 	       type == AUDIO_OUT_PORT_TYPE_AUX;
 }
 
+SDL_AudioDeviceID ResolvePlaybackDevice() {
+	const auto& name = Config::GetAudioOutputDevice();
+	if (name.empty()) {
+		return SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK;
+	}
+
+	int                count   = 0;
+	SDL_AudioDeviceID* devices = SDL_GetAudioPlaybackDevices(&count);
+	auto               result  = SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK;
+	if (devices != nullptr) {
+		for (int i = 0; i < count; i++) {
+			const char* device_name = SDL_GetAudioDeviceName(devices[i]);
+			if (device_name != nullptr && name == device_name) {
+				result = devices[i];
+				break;
+			}
+		}
+		SDL_free(devices);
+	}
+
+	if (result == SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK) {
+		LOGF("AudioOut: playback device not found, using system default: %s\n", name.c_str());
+	}
+	return result;
+}
+
 } // namespace
 
 class Audio {
@@ -274,12 +300,16 @@ bool Audio::OpenSdlDevice(PortOut* port) {
 	desired.format   = SdlFormat(port->format);
 	desired.channels = static_cast<int>(OutputChannels(*port));
 
-	port->stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &desired, nullptr,
-	                                         nullptr);
+	const auto device = ResolvePlaybackDevice();
+	port->stream      = SDL_OpenAudioDeviceStream(device, &desired, nullptr, nullptr);
 	if (port->stream == nullptr) {
 		LOGF("AudioOut: SDL_OpenAudioDeviceStream failed: %s\n", SDL_GetError());
 		SDL_QuitSubSystem(SDL_INIT_AUDIO);
 		return false;
+	}
+	const float volume = static_cast<float>(Config::GetAudioVolume()) / 100.0f;
+	if (!SDL_SetAudioStreamGain(port->stream, volume)) {
+		LOGF("AudioOut: SDL_SetAudioStreamGain failed: %s\n", SDL_GetError());
 	}
 	if (!SDL_ResumeAudioStreamDevice(port->stream)) {
 		LOGF("AudioOut: SDL_ResumeAudioStreamDevice failed: %s\n", SDL_GetError());

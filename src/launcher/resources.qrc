@@ -10,8 +10,24 @@
   <file alias="kyty.svg">icons/kyty.svg</file>
   <file alias="kyty-small.svg">icons/kyty-small.svg</file>
   <file alias="hidden-trophy.png">../../assets/images/hidden-trophy.png</file>
+  <file alias="chevron-down.svg">icons/chevron-down.svg</file>
+  <file alias="chevron-up.svg">icons/chevron-up.svg</file>
+  <file alias="check.svg">icons/check.svg</file>
+  <file alias="search.svg">icons/search.svg</file>
+  <file alias="star.svg">icons/star.svg</file>
+  <file alias="star-fill.svg">icons/star-fill.svg</file>
+  <file alias="archive.svg">icons/archive.svg</file>
+  <file alias="shield.svg">icons/shield.svg</file>
+  <file alias="list.svg">icons/list.svg</file>
+  <file alias="more.svg">icons/more.svg</file>
+  <file alias="play.svg">icons/play.svg</file>
+  <file alias="arrow-right.svg">icons/arrow-right.svg</file>
+  <file alias="folder.svg">icons/folder.svg</file>
+  <file alias="folder-plus.svg">icons/folder-plus.svg</file>
+  <file alias="plus.svg">icons/plus.svg</file>
  </qresource>
  <qresource prefix="/styles">
   <file alias="launcher.qss">styles/launcher.qss</file>
+  <file alias="kytyps5-console.qss">styles/kytyps5-console.qss</file>
  </qresource>
 </RCC>

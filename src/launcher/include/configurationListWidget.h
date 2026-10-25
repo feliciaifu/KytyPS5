@@ -3,6 +3,7 @@
 
 #include "configuration.h"
 
+#include <QList>
 #include <QMap>
 #include <QString>
 #include <QStringList>
@@ -15,6 +16,7 @@ class CompatibilityDatabase;
 class ControllerPreview;
 class QEvent;
 class QTreeWidgetItem;
+class QTreeWidget;
 
 namespace Ui {
 class ConfigurationListWidget;
@@ -38,6 +40,34 @@ public:
 	[[nodiscard]] const QString& GetGlobalControllerColor() const {
 		return m_global_info.controller.color;
 	}
+
+	[[nodiscard]] QTreeWidget*             GetTreeWidget() const;
+	[[nodiscard]] QList<ConfigurationItem*> GetItems() const;
+	[[nodiscard]] const Configuration&     GetGlobalInfo() const { return m_global_info; }
+	Configuration&                         GetGlobalInfo() { return m_global_info; }
+	[[nodiscard]] const QStringList&       GetGameDirectories() const { return m_game_dirs; }
+	[[nodiscard]] const QString&           GetAddonsDirectory() const { return m_addons_dir; }
+	[[nodiscard]] const QString&           GetRuntimeDirectory() const { return m_runtime_directory; }
+
+	void SelectItemByPointer(ConfigurationItem* item);
+	void RequestRun();
+	void EditSelectedGame();
+	void DeleteSelectedGame();
+	void OpenSelectedGameFolder();
+	void OpenSelectedSaveDataFolder();
+	void RemoveSelectedSaveData();
+	void CompressSelectedGame();
+	void ShowPatchesForSelected();
+	void ShowAdditionalContentForSelected();
+	void EditGlobalSettings();
+	void EditInputMapping();
+	void AddGameDirectoryInteractive(QWidget* parent);
+	void AddGameDirectory(const QString& dir);
+	void RemoveGameDirectory(const QString& dir);
+	[[nodiscard]] bool CanEditCompatibility(const ConfigurationItem& item) const;
+	void SetCompatibilityStatus(const QString& title_id, Configuration::GameStatus status);
+	void SetCompatibilityComment(const QString& title_id, const QString& comment);
+	void OpenSettingsFileFolder();
 	[[nodiscard]] std::unique_ptr<Configuration>
 	CreateConfiguration(const ConfigurationItem& item) const;
 
@@ -51,6 +81,8 @@ signals:
 	void Run();
 	void Select();
 	void PreviewControllerColor(const QString& color);
+	void ItemsChanged();
+	void SelectionChanged(ConfigurationItem* item);
 
 protected:
 	void changeEvent(QEvent* event) override;
