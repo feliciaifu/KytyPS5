@@ -1,6 +1,7 @@
 #include "kernel/pthread.h"
 
 #include "common/assert.h"
+#include "common/processorAffinity.h"
 #include "common/common.h"
 #include "common/dateTime.h"
 #include "common/emulatorConfig.h"
@@ -3238,6 +3239,11 @@ static void* RunThread(void* arg) {
 	if (std::getenv("KYTY_LOW_PRIORITY_WORKERS") != nullptr &&
 	    thread->name.find("BPE JobWorkerThread") != std::string::npos) {
 		SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_BELOW_NORMAL);
+	}
+	if (std::getenv("KYTY_E_CORE_WORKERS") != nullptr &&
+	    thread->name.find("BPE JobWorkerThread") != std::string::npos) {
+		static const auto masks = Common::GetProcessorMasks();
+		Common::PinCurrentThread(masks.efficiency);
 	}
 #endif
 

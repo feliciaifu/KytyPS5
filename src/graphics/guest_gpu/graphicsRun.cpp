@@ -4,6 +4,7 @@
 #include "common/debugCounters.h"
 #include "common/emulatorConfig.h"
 #include "common/logging/log.h"
+#include "common/processorAffinity.h"
 #include "common/profiler.h"
 #include "common/stringUtils.h"
 #include "common/threads.h"
@@ -409,6 +410,9 @@ void GuestGpu::ThreadRun(void* data) {
 #if KYTY_PLATFORM == KYTY_PLATFORM_WINDOWS
 	if (std::getenv("KYTY_GPU_PRIORITY") != nullptr) {
 		SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST);
+	}
+	if (std::getenv("KYTY_P_CORE_GPU") != nullptr) {
+		Common::PinCurrentThread(Common::GetProcessorMasks().performance);
 	}
 #endif
 	g_gpu_thread = true;
