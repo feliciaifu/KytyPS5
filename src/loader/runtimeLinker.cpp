@@ -650,6 +650,25 @@ static bool IsReadableRange(uint64_t addr, uint64_t size) {
 	return true;
 }
 
+#if KYTY_PLATFORM == KYTY_PLATFORM_WINDOWS
+static std::string ModuleForAddress(uint64_t address) {
+	HMODULE module = nullptr;
+	if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+	                           GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+	                       reinterpret_cast<LPCSTR>(address), &module)) {
+		char path[MAX_PATH] {};
+		if (GetModuleFileNameA(module, path, MAX_PATH) != 0) {
+			return fmt::format("{} + 0x{:x}", path, address - reinterpret_cast<uintptr_t>(module));
+		}
+	}
+	return {};
+}
+#else
+static std::string ModuleForAddress(uint64_t /*address*/) {
+	return {};
+}
+#endif
+
 static bool KytyExceptionHandler(const Common::HostException::ExceptionInfo& exception_info) {
 	const auto* info = &exception_info;
 
@@ -690,6 +709,9 @@ static bool KytyExceptionHandler(const Common::HostException::ExceptionInfo& exc
 		}
 		std::printf("--- Guest fault context ---\n");
 		std::printf("thread: %s\n", thread_name);
+		const auto pc_module = ModuleForAddress(info->exception_address);
+		std::printf("module: %s\n",
+		            pc_module.empty() ? "<guest/unmapped>" : pc_module.c_str());
 		std::printf("rax=%016" PRIx64 " rbx=%016" PRIx64 " rcx=%016" PRIx64 " rdx=%016" PRIx64 "\n"
 		            "rsi=%016" PRIx64 " rdi=%016" PRIx64 " rbp=%016" PRIx64 " rsp=%016" PRIx64 "\n"
 		            "r8 =%016" PRIx64 " r9 =%016" PRIx64 " r10=%016" PRIx64 " r11=%016" PRIx64 "\n"
@@ -710,6 +732,16 @@ static bool KytyExceptionHandler(const Common::HostException::ExceptionInfo& exc
 			std::printf("stack:");
 			for (int i = 0; i < 32; i++) {
 				std::printf("%s %016" PRIx64, (i % 4 == 0) ? "\n " : "", stack[i]);
+			}
+			std::printf("\nstack modules:");
+			for (int i = 0; i < 32; i++) {
+				if (stack[i] < 0x10000) {
+					continue;
+				}
+				const auto module = ModuleForAddress(stack[i]);
+				if (!module.empty()) {
+					std::printf("\n [%d] %s", i, module.c_str());
+				}
 			}
 			std::printf("\n");
 		}
