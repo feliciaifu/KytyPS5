@@ -379,7 +379,10 @@ QWidget* LauncherShell::BuildTitleBar() {
 	m_version_chip = new QLabel(bar);
 	m_version_chip->setObjectName(QStringLiteral("VersionChip"));
 	m_version_chip->setAttribute(Qt::WA_TransparentForMouseEvents);
-	layout->addWidget(m_version_chip);
+	m_version_chip->setAlignment(Qt::AlignCenter);
+	m_version_chip->setFixedHeight(18);
+	m_version_chip->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+	layout->addWidget(m_version_chip, 0, Qt::AlignVCenter);
 	layout->addStretch(1);
 
 	const auto add_window_button = [this, bar, layout](const QString& text,

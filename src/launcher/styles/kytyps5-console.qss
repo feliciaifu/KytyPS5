@@ -818,13 +818,13 @@ QLabel#TitleText {
 
 QLabel#VersionChip {
 	background: #141A25;
-	border: 0;
-	border-radius: 5px;
+	border: 1px solid #202838;
+	border-radius: 4px;
 	color: #6E7893;
 	font-family: "Inter", "Segoe UI", sans-serif;
 	font-size: 9.5px;
 	font-weight: 500;
-	padding: 2px 7px;
+	padding: 0 6px;
 }
 
 QPushButton#WindowButton,
