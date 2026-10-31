@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cinttypes>
+#include <cstdlib>
 #include <cstring>
 #include <memory>
 #include <utility>
@@ -314,7 +315,13 @@ void BufferCache::ReadMemory(uint64_t vaddr, uint64_t size, bool is_write) {
 		}
 		auto& buffer = m_slot_buffers[FindBuffer(vaddr, size)];
 
-		if (DownloadBufferMemory<false>(buffer, vaddr, size)) {
+		const bool skip_write_flush =
+		    is_write && std::getenv("KYTY_SKIP_WRITE_FLUSH") != nullptr;
+		if (skip_write_flush) {
+			m_memory_tracker.UnmarkRegionAsGpuModified(vaddr, size);
+			m_gpu_modified_ranges.Subtract(vaddr, size);
+			ForgetColorMetadataChecks(vaddr, size);
+		} else if (DownloadBufferMemory<false>(buffer, vaddr, size)) {
 			m_memory_tracker.UnmarkRegionAsGpuModified(vaddr, size);
 		}
 		if (is_write) {
