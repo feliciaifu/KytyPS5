@@ -1100,6 +1100,9 @@ static bool BuildResourceSpecialization(const ResourcePlan& program, ResourceSna
 			if (image.indirect_root != root_index) {
 				continue;
 			}
+			if (image.fmask) {
+				continue;
+			}
 			if (NullImageDescriptor(snapshot.images[candidate])) {
 				image.numeric_class     = image_class.numeric_class;
 				image.dimension         = image_class.dimension;
@@ -1120,9 +1123,31 @@ static bool BuildResourceSpecialization(const ResourcePlan& program, ResourceSna
 			     !unfiltered_coordinates && !prefix_coordinates) ||
 			    image.conversion_format != image_class.conversion_format ||
 			    (!storage_swizzle && image.shader_swizzle != image_class.shader_swizzle)) {
-				return SpecializationFail(
-				    fmt::format("indirect image table at pc 0x{:08x} has incompatible candidates",
-				                program.info.images[root_index].first_use_pc));
+				const auto descriptor_text = [](const DescriptorValue& value) {
+					return fmt::format("{:08x},{:08x},{:08x},{:08x},{:08x},{:08x},{:08x},{:08x}",
+					                   value.dwords[0], value.dwords[1], value.dwords[2],
+					                   value.dwords[3], value.dwords[4], value.dwords[5],
+					                   value.dwords[6], value.dwords[7]);
+				};
+				return SpecializationFail(fmt::format(
+				    "indirect image table at pc 0x{:08x} has incompatible candidates: "
+				    "stage={} hash={:016x} root={} exemplar={} class_dim={} class_cube={} "
+				    "class_conv={} class_swizzle={:03x} candidate={} dim={} cube={} conv={} "
+				    "swizzle={:03x} null={} same={} unfiltered={} prefix={} base_dim={} "
+				    "base_class={} base_unfiltered={} class_words={} candidate_words={} "
+				    "base_words={}",
+				    program.info.images[root_index].first_use_pc,
+				    static_cast<uint32_t>(program.stage), program.shader_hash, root_index, exemplar,
+				    static_cast<uint32_t>(image_class.dimension), image_class.cube,
+				    static_cast<uint32_t>(image_class.conversion_format), image_class.shader_swizzle,
+				    candidate, static_cast<uint32_t>(image.dimension), image.cube,
+				    static_cast<uint32_t>(image.conversion_format), image.shader_swizzle,
+				    NullImageDescriptor(snapshot.images[candidate]), same_coordinates,
+				    unfiltered_coordinates, prefix_coordinates,
+				    static_cast<uint32_t>(base.dimension), static_cast<uint32_t>(base.resource_class),
+				    base.unfiltered_access_only, descriptor_text(snapshot.images[exemplar]),
+				    descriptor_text(snapshot.images[candidate]),
+				    descriptor_text(snapshot.images[root_index])));
 			}
 		}
 	}
