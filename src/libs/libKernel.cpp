@@ -1768,6 +1768,14 @@ int KYTY_SYSV_ABI KernelRtldThreadAtexitDecrement(uint64_t* /*c*/) {
 static uint64_t KYTY_SYSV_ABI KernelGetAvailableCpumask() {
 	PRINT_NAME();
 
+	if (const auto* value = std::getenv("KYTY_CPU_MASK"); value != nullptr) {
+		char*      end   = nullptr;
+		const auto mask  = std::strtoull(value, &end, 0);
+		if (end != nullptr && *end == '\0' && mask != 0) {
+			return mask;
+		}
+	}
+
 	return 0x1fff;
 }
 
