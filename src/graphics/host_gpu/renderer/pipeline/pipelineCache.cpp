@@ -1,5 +1,7 @@
 #include "graphics/host_gpu/renderer/pipeline/pipelineCache.h"
 
+#include "graphics/host_gpu/renderer/pipeline/pipelineBreadcrumb.h"
+
 #include "common/assert.h"
 #include "common/debugCounters.h"
 #include "common/emulatorConfig.h"
@@ -1060,6 +1062,8 @@ PipelineCache::Pipeline& PipelineCache::GetGraphicsPipeline(const CommandBuffer&
 		Common::DebugCounters::ScopedTimer timer(Common::DebugCounters::Counter::PipelinesCreated,
 		                                         Common::DebugCounters::Counter::PipelineCreateNs,
 		                                         Common::DebugCounters::Peak::PipelineCreateNs);
+		SetPipelineBreadcrumb(1, key.stage_ids[0], key.stage_ids[1], key.stage_ids[2],
+		                      key.stage_ids[3]);
 		CreatePipelineInternal(m_graphics, pipeline, key, stages, m_driver_cache);
 	}
 	StorePipeline(key);
@@ -1088,6 +1092,7 @@ PipelineCache::Pipeline& PipelineCache::GetComputePipeline(const ShaderComputeIn
 		Common::DebugCounters::ScopedTimer timer(Common::DebugCounters::Counter::PipelinesCreated,
 		                                         Common::DebugCounters::Counter::PipelineCreateNs,
 		                                         Common::DebugCounters::Peak::PipelineCreateNs);
+		SetPipelineBreadcrumb(2, module.id);
 		CreatePipelineInternal(m_graphics, pipeline, module, m_driver_cache);
 	}
 	CheckpointDriverCache();

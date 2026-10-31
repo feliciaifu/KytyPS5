@@ -14,6 +14,7 @@
 #include "common/threads.h"
 #include "common/virtualMemory.h"
 #include "graphics/host_gpu/pageManager.h"
+#include "graphics/host_gpu/renderer/pipeline/pipelineBreadcrumb.h"
 #include "graphics/shader/recompiler/ir/passes/SrtWalker.h"
 #include "kernel/fileSystem.h"
 #include "kernel/memory.h"
@@ -712,6 +713,14 @@ static bool KytyExceptionHandler(const Common::HostException::ExceptionInfo& exc
 		const auto pc_module = ModuleForAddress(info->exception_address);
 		std::printf("module: %s\n",
 		            pc_module.empty() ? "<guest/unmapped>" : pc_module.c_str());
+		const auto& breadcrumb = Libs::Graphics::GetPipelineBreadcrumb();
+		std::printf("last pipeline: kind=%u stages=%016" PRIx64 " %016" PRIx64 " %016" PRIx64
+		            " %016" PRIx64 "\n",
+		            breadcrumb.kind.load(std::memory_order_relaxed),
+		            breadcrumb.stage0.load(std::memory_order_relaxed),
+		            breadcrumb.stage1.load(std::memory_order_relaxed),
+		            breadcrumb.stage2.load(std::memory_order_relaxed),
+		            breadcrumb.stage3.load(std::memory_order_relaxed));
 		std::printf("rax=%016" PRIx64 " rbx=%016" PRIx64 " rcx=%016" PRIx64 " rdx=%016" PRIx64 "\n"
 		            "rsi=%016" PRIx64 " rdi=%016" PRIx64 " rbp=%016" PRIx64 " rsp=%016" PRIx64 "\n"
 		            "r8 =%016" PRIx64 " r9 =%016" PRIx64 " r10=%016" PRIx64 " r11=%016" PRIx64 "\n"

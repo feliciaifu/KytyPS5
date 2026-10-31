@@ -19,6 +19,7 @@
 #include "graphics/host_gpu/renderer/cache/streamBuffer.h"
 #include "graphics/host_gpu/renderer/commandScheduler.h"
 #include "graphics/host_gpu/renderer/image/image.h"
+#include "graphics/host_gpu/renderer/pipeline/pipelineBreadcrumb.h"
 
 #include <algorithm>
 #include <array>
@@ -239,7 +240,8 @@ vk::Pipeline TileManager::CreatePipeline(std::span<const uint32_t>     code,
 	create.stage          = stage;
 	create.layout         = m_pipeline_layout;
 	vk::Pipeline pipeline = nullptr;
-	const auto   result =
+	SetPipelineBreadcrumb(3, code.size(), specialization != nullptr ? 1u : 0u);
+	const auto result =
 	    m_graphics.device.createComputePipelines(nullptr, 1, &create, nullptr, &pipeline);
 	m_graphics.device.destroyShaderModule(module, nullptr);
 	RequireVulkanSuccess(result, "create TileManager pipeline");
