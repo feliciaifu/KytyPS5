@@ -445,8 +445,11 @@ void CreatePipelineInternal(GraphicContext& graphics, PipelineCache::Pipeline& p
 	EXIT_NOT_IMPLEMENTED(result != vk::Result::eSuccess);
 
 	vk::ComputePipelineCreateInfo info {};
+	if (graphics.physical_device_properties.vendorID == 0x1002u) {
+		info.flags |= vk::PipelineCreateFlagBits::eDisableOptimization;
+	}
 	if (module.info.info.uses_gds) {
-		info.flags = vk::PipelineCreateFlagBits::eDispatchBase;
+		info.flags |= vk::PipelineCreateFlagBits::eDispatchBase;
 	}
 	info.stage             = comp_shader_stage_info;
 	info.layout            = pipeline.pipeline_layout;
