@@ -129,6 +129,7 @@ public:
 	int                    trophy_duration_seconds     = 6;
 	bool                   perf_overlay_enabled        = false;
 	bool                   skip_notice_screen          = false;
+	bool                   close_terminal              = false;
 	bool                   network_connected           = false;
 	bool                   psn_emulation_enabled       = false;
 	int                    vblank_frequency            = 60;
@@ -176,6 +177,7 @@ public:
 		trophy_duration_seconds     = other.trophy_duration_seconds;
 		perf_overlay_enabled        = other.perf_overlay_enabled;
 		skip_notice_screen          = other.skip_notice_screen;
+		close_terminal              = other.close_terminal;
 		network_connected           = other.network_connected;
 		psn_emulation_enabled       = other.psn_emulation_enabled;
 		vblank_frequency            = other.vblank_frequency;

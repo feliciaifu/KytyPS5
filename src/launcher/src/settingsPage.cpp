@@ -135,6 +135,7 @@ void SettingsPage::BuildUi() {
 	add_tab(QStringLiteral("控制器"), &m_tab_controller);
 	add_tab(QStringLiteral("存储路径"), &m_tab_storage);
 	add_tab(QStringLiteral("更新"), &m_tab_update);
+	add_tab(QStringLiteral("兼容性"), &m_tab_compatibility);
 	m_tab_general->setChecked(true);
 	tabs->addStretch(1);
 	root->addWidget(tabs_host);
@@ -323,6 +324,32 @@ void SettingsPage::BuildUi() {
 		m_controller->WriteSettings();
 	});
 
+	m_stretch_toggle = new ToggleSwitch(m_graphics_card);
+	m_stretch_toggle->setToolTip(
+	    QStringLiteral("非 16:9 分辨率时拉伸画面填满窗口，而不是显示黑边。"));
+	AddRow(body, QStringLiteral("拉伸到窗口"), m_stretch_toggle);
+	connect(m_stretch_toggle, &ToggleSwitch::Toggled, this, [this](bool checked) {
+		if (m_updating) {
+			return;
+		}
+		auto& global            = m_controller->GetGlobalInfo();
+		global.stretch_enabled  = checked;
+		m_controller->WriteSettings();
+	});
+
+	m_shader_cache_toggle = new ToggleSwitch(m_graphics_card);
+	m_shader_cache_toggle->setToolTip(
+	    QStringLiteral("缓存已编译的着色器和管线；关闭后每次启动都需要重新编译。"));
+	AddRow(body, QStringLiteral("缓存着色器"), m_shader_cache_toggle);
+	connect(m_shader_cache_toggle, &ToggleSwitch::Toggled, this, [this](bool checked) {
+		if (m_updating) {
+			return;
+		}
+		auto& global                = m_controller->GetGlobalInfo();
+		global.shader_cache_enabled = checked;
+		m_controller->WriteSettings();
+	});
+
 	m_update_card = AddCard(m_right_column, QStringLiteral("更新"), &body);
 	m_version_value = AddTextRow(body, QStringLiteral("当前版本"));
 	m_version_value->setText(QStringLiteral("v0.0.0"));
@@ -353,9 +380,36 @@ void SettingsPage::BuildUi() {
 	m_update_status->setWordWrap(true);
 	body->addWidget(m_update_status);
 
-#if defined(_WIN32)
 	m_compatibility_card = AddCard(m_right_column, QStringLiteral("兼容性"), &body);
-	m_red_zone_toggle     = new ToggleSwitch(m_compatibility_card);
+
+	m_psn_toggle = new ToggleSwitch(m_compatibility_card);
+	m_psn_toggle->setToolTip(
+	    QStringLiteral("模拟 PSN 登录；用于需要 PSN 服务的离线游戏。"));
+	AddRow(body, QStringLiteral("PSN 模拟"), m_psn_toggle);
+	connect(m_psn_toggle, &ToggleSwitch::Toggled, this, [this](bool checked) {
+		if (m_updating) {
+			return;
+		}
+		auto& global                   = m_controller->GetGlobalInfo();
+		global.psn_emulation_enabled   = checked;
+		m_controller->WriteSettings();
+	});
+
+	m_pro_toggle = new ToggleSwitch(m_compatibility_card);
+	m_pro_toggle->setToolTip(
+	    QStringLiteral("实验性：启用 Pro/Trinity 渲染路径；仅部分游戏支持。"));
+	AddRow(body, QStringLiteral("Pro/Trinity 渲染（实验性）"), m_pro_toggle);
+	connect(m_pro_toggle, &ToggleSwitch::Toggled, this, [this](bool checked) {
+		if (m_updating) {
+			return;
+		}
+		auto& global       = m_controller->GetGlobalInfo();
+		global.pro_enabled = checked;
+		m_controller->WriteSettings();
+	});
+
+#if defined(_WIN32)
+	m_red_zone_toggle = new ToggleSwitch(m_compatibility_card);
 	m_red_zone_toggle->setToolTip(
 	    QStringLiteral("实验性：防止部分游戏在角色创建或场景切换时崩溃。"));
 	AddRow(body, QStringLiteral("Windows SysV 红区崩溃保护"), m_red_zone_toggle);
@@ -367,13 +421,27 @@ void SettingsPage::BuildUi() {
 		global.red_zone_protection_enabled = checked;
 		m_controller->WriteSettings();
 	});
+
+	m_close_terminal_toggle = new ToggleSwitch(m_compatibility_card);
+	m_close_terminal_toggle->setToolTip(
+	    QStringLiteral("游戏正常退出后关闭启动器打开的控制台窗口。"));
+	AddRow(body, QStringLiteral("游戏退出后关闭终端"), m_close_terminal_toggle);
+	connect(m_close_terminal_toggle, &ToggleSwitch::Toggled, this, [this](bool checked) {
+		if (m_updating) {
+			return;
+		}
+		auto& global          = m_controller->GetGlobalInfo();
+		global.close_terminal = checked;
+		m_controller->WriteSettings();
+	});
+#endif
+
 	auto* compatibility_note = new QLabel(
-	    QStringLiteral("实验性选项；恶魔之魂在角色创建或雾门后崩溃时请启用。修改在下次启动游戏时生效。"),
+	    QStringLiteral("PSN 模拟和 Pro/Trinity 为实验性选项；修改在下次启动游戏时生效。"),
 	    m_compatibility_card);
 	compatibility_note->setObjectName(QStringLiteral("DetailNote"));
 	compatibility_note->setWordWrap(true);
 	body->addWidget(compatibility_note);
-#endif
 
 	m_controller_card = AddCard(m_right_column, QStringLiteral("控制器"), &body);
 	m_pad_value     = AddTextRow(body, QStringLiteral("已连接设备"));
@@ -461,6 +529,7 @@ void SettingsPage::BuildUi() {
 	connect(m_tab_controller, &QPushButton::clicked, this, [this]() { SetSection(3); });
 	connect(m_tab_storage, &QPushButton::clicked, this, [this]() { SetSection(4); });
 	connect(m_tab_update, &QPushButton::clicked, this, [this]() { SetSection(5); });
+	connect(m_tab_compatibility, &QPushButton::clicked, this, [this]() { SetSection(6); });
 
 	SetSection(0);
 }
@@ -539,6 +608,26 @@ void SettingsPage::Refresh() {
 		const int index = m_device_combo->findData(global.gpu_index);
 		m_device_combo->setCurrentIndex(index >= 0 ? index : 0);
 	}
+	if (m_stretch_toggle != nullptr) {
+		m_stretch_toggle->SetChecked(global.stretch_enabled);
+	}
+	if (m_shader_cache_toggle != nullptr) {
+		m_shader_cache_toggle->SetChecked(global.shader_cache_enabled);
+	}
+	if (m_psn_toggle != nullptr) {
+		m_psn_toggle->SetChecked(global.psn_emulation_enabled);
+	}
+	if (m_pro_toggle != nullptr) {
+		m_pro_toggle->SetChecked(global.pro_enabled);
+	}
+#if defined(_WIN32)
+	if (m_red_zone_toggle != nullptr) {
+		m_red_zone_toggle->SetChecked(global.red_zone_protection_enabled);
+	}
+	if (m_close_terminal_toggle != nullptr) {
+		m_close_terminal_toggle->SetChecked(global.close_terminal);
+	}
+#endif
 	{
 		const QSignalBlocker blocker(m_volume_slider);
 		m_volume_slider->setValue(global.audio_volume);
@@ -571,11 +660,6 @@ void SettingsPage::Refresh() {
 	                                                 : m_controller_name);
 	m_backend_value->setText(m_graphics_api.isEmpty() ? QStringLiteral("自动")
 	                                                  : m_graphics_api);
-#if defined(_WIN32)
-	if (m_red_zone_toggle != nullptr) {
-		m_red_zone_toggle->SetChecked(global.red_zone_protection_enabled);
-	}
-#endif
 	m_update_status->setText(!m_check_updates_supported
 	                             ? QStringLiteral("当前构建不支持自动更新")
 	                             : (m_installing ? QStringLiteral("正在安装更新…")
@@ -763,6 +847,7 @@ void SettingsPage::SetSection(int section) {
 		case 3: add(m_left_column, m_controller_card); break;
 		case 4: add(m_left_column, m_storage_card); break;
 		case 5: add(m_left_column, m_update_card); break;
+		case 6: add(m_left_column, m_compatibility_card); break;
 		default: break;
 	}
 	m_left_column->addStretch(1);
@@ -774,6 +859,7 @@ void SettingsPage::SetSection(int section) {
 	m_tab_controller->setChecked(section == 3);
 	m_tab_storage->setChecked(section == 4);
 	m_tab_update->setChecked(section == 5);
+	m_tab_compatibility->setChecked(section == 6);
 
 	if (m_scroll != nullptr) {
 		m_scroll->verticalScrollBar()->setValue(0);

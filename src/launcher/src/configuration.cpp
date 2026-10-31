@@ -43,6 +43,7 @@ QVariantMap Configuration::GameSettings() const {
 	KYTY_CFG_SET(trophy_duration_seconds);
 	KYTY_CFG_SET(perf_overlay_enabled);
 	KYTY_CFG_SET(skip_notice_screen);
+	KYTY_CFG_SET(close_terminal);
 	KYTY_CFG_SET(network_connected);
 	KYTY_CFG_SET(psn_emulation_enabled);
 	KYTY_CFG_SET(vblank_frequency);
@@ -101,6 +102,7 @@ void Configuration::ReadGameSettingsValues(const Settings& s) {
 	KYTY_CFG_GET(trophy_duration_seconds);
 	KYTY_CFG_GET(perf_overlay_enabled);
 	KYTY_CFG_GET(skip_notice_screen);
+	close_terminal = s.value("close_terminal", close_terminal).toBool();
 	KYTY_CFG_GET(network_connected);
 	KYTY_CFG_GET(psn_emulation_enabled);
 	vblank_frequency = s.value("vblank_frequency", vblank_frequency).toInt();

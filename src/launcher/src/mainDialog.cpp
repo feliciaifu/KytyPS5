@@ -510,7 +510,7 @@ void MainDialogPrivate::Run() {
 		        }
 	        });
 	auto info = m_controller->CreateConfiguration(*item);
-	m_main_dialog->RunInterpreter(process, *info, false);
+	m_main_dialog->RunInterpreter(process, *info, info->close_terminal);
 
 	Update();
 }

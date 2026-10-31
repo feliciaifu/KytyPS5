@@ -77,6 +77,7 @@ private:
 	QPushButton* m_tab_controller = nullptr;
 	QPushButton* m_tab_storage = nullptr;
 	QPushButton* m_tab_update = nullptr;
+	QPushButton* m_tab_compatibility = nullptr;
 
 	QLabel* m_theme_value = nullptr;
 	QLabel* m_language_value = nullptr;
@@ -108,6 +109,11 @@ private:
 
 	ToggleSwitch* m_check_on_startup = nullptr;
 	ToggleSwitch* m_red_zone_toggle = nullptr;
+	ToggleSwitch* m_close_terminal_toggle = nullptr;
+	ToggleSwitch* m_psn_toggle = nullptr;
+	ToggleSwitch* m_pro_toggle = nullptr;
+	ToggleSwitch* m_stretch_toggle = nullptr;
+	ToggleSwitch* m_shader_cache_toggle = nullptr;
 	QPushButton*  m_check_updates = nullptr;
 };
 
