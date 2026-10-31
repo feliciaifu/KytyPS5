@@ -22,6 +22,7 @@
 #include <cerrno>
 #include <chrono>
 #include <condition_variable>
+#include <cstdlib>
 #include <cstring>
 #include <ctime>
 #include <memory>
@@ -3233,6 +3234,10 @@ static void* RunThread(void* arg) {
 			MultiByteToWideChar(CP_UTF8, 0, thread->name.c_str(), -1, name.data(), length);
 			SetThreadDescription(GetCurrentThread(), name.c_str());
 		}
+	}
+	if (std::getenv("KYTY_LOW_PRIORITY_WORKERS") != nullptr &&
+	    thread->name.find("BPE JobWorkerThread") != std::string::npos) {
+		SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_BELOW_NORMAL);
 	}
 #endif
 

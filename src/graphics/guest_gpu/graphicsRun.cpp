@@ -25,12 +25,17 @@
 #include <array>
 #include <atomic>
 #include <cstdio>
+#include <cstdlib>
 #include <deque>
 #include <memory>
 #include <mutex>
 #include <semaphore>
 #include <thread>
 #include <vector>
+
+#if KYTY_PLATFORM == KYTY_PLATFORM_WINDOWS
+#include <windows.h>
+#endif
 
 namespace Libs::Graphics {
 
@@ -401,6 +406,11 @@ void GuestGpu::ThreadRun(void* data) {
 	auto* gpu = static_cast<GuestGpu*>(data);
 	EXIT_IF(gpu == nullptr);
 	KYTY_PROFILER_THREAD("Thread_Gpu");
+#if KYTY_PLATFORM == KYTY_PLATFORM_WINDOWS
+	if (std::getenv("KYTY_GPU_PRIORITY") != nullptr) {
+		SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST);
+	}
+#endif
 	g_gpu_thread = true;
 	g_gpu_state  = gpu;
 
