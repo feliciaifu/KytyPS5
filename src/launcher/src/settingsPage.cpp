@@ -28,8 +28,11 @@
 
 namespace {
 
-QString FormatResolution(Configuration::Resolution resolution) {
-	auto text = EnumToText(resolution);
+QString FormatResolution(const QString& resolution) {
+	auto text = Configuration::NormalizeResolution(resolution);
+	if (text.isEmpty()) {
+		text = resolution;
+	}
 	text.replace(QLatin1Char('x'), QStringLiteral(" × "));
 	text.replace(QLatin1Char('X'), QStringLiteral(" × "));
 	return text;
@@ -305,20 +308,18 @@ void SettingsPage::BuildUi() {
 	m_resolution_combo = new QComboBox(m_graphics_card);
 	m_resolution_combo->setObjectName(QStringLiteral("SettingsCombo"));
 	m_resolution_combo->setFixedHeight(30);
-	for (const auto resolution:
-	     {Configuration::Resolution::R1280X720, Configuration::Resolution::R1920X1080,
-	      Configuration::Resolution::R2560X1440, Configuration::Resolution::R3840X2160}) {
-		m_resolution_combo->addItem(FormatResolution(resolution),
-		                            static_cast<int>(resolution));
+	for (const auto& resolution:
+	     {QStringLiteral("1280x720"), QStringLiteral("1920x1080"),
+	      QStringLiteral("2560x1440"), QStringLiteral("3840x2160")}) {
+		m_resolution_combo->addItem(FormatResolution(resolution), resolution);
 	}
 	AddRow(body, QStringLiteral("内部分辨率"), m_resolution_combo);
 	connect(m_resolution_combo, &QComboBox::currentIndexChanged, this, [this](int) {
 		if (m_updating) {
 			return;
 		}
-		auto& global = m_controller->GetGlobalInfo();
-		global.screen_resolution = static_cast<Configuration::Resolution>(
-		    m_resolution_combo->currentData().toInt());
+		auto& global            = m_controller->GetGlobalInfo();
+		global.screen_resolution = m_resolution_combo->currentData().toString();
 		m_controller->WriteSettings();
 	});
 
@@ -525,9 +526,13 @@ void SettingsPage::Refresh() {
 	m_updating = true;
 	{
 		const QSignalBlocker blocker(m_resolution_combo);
-		const int index =
-		    m_resolution_combo->findData(static_cast<int>(global.screen_resolution));
-		m_resolution_combo->setCurrentIndex(index >= 0 ? index : 0);
+		int index = m_resolution_combo->findData(global.screen_resolution);
+		if (index < 0) {
+			m_resolution_combo->addItem(FormatResolution(global.screen_resolution),
+			                           global.screen_resolution);
+			index = m_resolution_combo->count() - 1;
+		}
+		m_resolution_combo->setCurrentIndex(index);
 	}
 	{
 		const QSignalBlocker blocker(m_device_combo);

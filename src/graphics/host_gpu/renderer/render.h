@@ -23,14 +23,9 @@ class Shader;
 } // namespace HW
 
 struct GraphicContext;
-struct ShaderBufferResource;
-struct ShaderComputeInputInfo;
-struct RenderDepthInfo;
-struct RenderColorInfo;
 struct DrawCallInfo;
 struct DrawEmitInfo;
 struct DrawIndexBufferSource;
-struct DrawRenderState;
 class RenderContext;
 class CommandScheduler;
 struct RenderExecutorTestAccess;
@@ -50,9 +45,10 @@ enum class DrawOffsetSource : uint8_t {
 
 // Nonzero address: the GPU reads count Vulkan indirect draw records, stride bytes apart.
 struct DrawIndirectArgs {
-	uint64_t address = 0;
-	uint32_t count   = 0;
-	uint32_t stride  = 0;
+	uint64_t              address = 0;
+	uint32_t              count   = 0;
+	uint32_t              stride  = 0;
+	ShaderIndirectOffsets offsets;
 };
 
 struct DrawIndexArgs {
@@ -154,15 +150,21 @@ private:
 	friend class CommandScheduler;
 };
 
+namespace Pssr {
+struct Request;
+}
+
 class RenderExecutor {
 public:
 	explicit RenderExecutor(RenderContext& context): m_context(context) {}
+	~RenderExecutor();
 	KYTY_CLASS_NO_COPY(RenderExecutor);
 
 	void DispatchDirect(uint64_t submit_id, CommandBuffer& buffer, uint32_t thread_group_x,
 	                    uint32_t thread_group_y, uint32_t thread_group_z, uint32_t mode, bool async_compute);
 	void DispatchIndirect(uint64_t submit_id, CommandBuffer& buffer, uint64_t args_addr,
 	                      uint32_t mode, bool async_compute);
+	void ProcessPssr(CommandBuffer& buffer, const Pssr::Request& request);
 
 	void PrepareBindings(const ShaderStageRuntime& runtime, PreparedBindings& prepared);
 	void                           FindBuffers(std::span<PreparedBindings* const> stages);
@@ -198,9 +200,8 @@ private:
 	                                          uint32_t            render_target_slice_offset,
 	                                          DrawRenderState& state);
 	void ExecutePreparedDraw(uint64_t submit_id, CommandBuffer& buffer, const DrawCallInfo& draw,
-	                         DrawRenderState& state, vk::PrimitiveTopology topology,
-	                         const DrawEmitInfo& emit, const DrawIndexBufferSource& index_source,
-	                         bool primitive_restart_enable);
+	                         DrawRenderState& state, const DrawEmitInfo& emit,
+	                         const DrawIndexBufferSource& index_source);
 	[[nodiscard]] RenderState AcquireRenderTargets(CommandBuffer& buffer, RenderColorInfo* colors,
 	                                               uint32_t color_count, RenderDepthInfo& depth,
 	                                               vk::ImageAspectFlags& feedback_aspects,
@@ -224,6 +225,9 @@ private:
 	std::vector<ImageId>                  m_bound_images;
 	std::vector<vk::DescriptorImageInfo>  m_descriptor_images;
 	std::vector<vk::WriteDescriptorSet>   m_descriptor_writes;
+	vk::DescriptorSetLayout               m_pssr_descriptor_layout = nullptr;
+	vk::PipelineLayout                    m_pssr_pipeline_layout   = nullptr;
+	vk::Pipeline                          m_pssr_pipeline          = nullptr;
 
 	friend class CommandProcessor;
 	friend struct RenderExecutorTestAccess;
