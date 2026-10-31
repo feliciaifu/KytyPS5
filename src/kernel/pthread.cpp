@@ -1016,6 +1016,9 @@ void PthreadInitSelfForMainThread() {
 	g_pthread_self->p               = pthread_self();
 	g_pthread_self->name            = "MainThread";
 	g_pthread_self->guest.thread_id = ++g_pthread_thread_id;
+#if KYTY_PLATFORM == KYTY_PLATFORM_WINDOWS
+	SetThreadDescription(GetCurrentThread(), L"MainThread");
+#endif
 	g_pthread_self->unique_id       = Common::Thread::GetThreadIdUnique();
 	g_pthread_self->free            = false;
 	g_pthread_self->detached        = false;
@@ -3221,6 +3224,17 @@ static void* RunThread(void* arg) {
 	thread->unique_id = Common::Thread::GetThreadIdUnique();
 
 	g_pthread_self = thread;
+
+#if KYTY_PLATFORM == KYTY_PLATFORM_WINDOWS
+	if (!thread->name.empty()) {
+		const auto length = MultiByteToWideChar(CP_UTF8, 0, thread->name.c_str(), -1, nullptr, 0);
+		if (length > 1) {
+			std::wstring name(static_cast<size_t>(length - 1), L'\0');
+			MultiByteToWideChar(CP_UTF8, 0, thread->name.c_str(), -1, name.data(), length);
+			SetThreadDescription(GetCurrentThread(), name.c_str());
+		}
+	}
+#endif
 
 	uint64_t os_thread_id = 0;
 #if KYTY_PLATFORM == KYTY_PLATFORM_WINDOWS
