@@ -184,6 +184,35 @@ bool TextureCache::SameBacking(const ImageInfo& cached, const ImageInfo& request
 	return true;
 }
 
+bool TextureCache::SameFindRequest(const ImageDesc& left, const ImageDesc& right) {
+	if (left.type != right.type || left.heap != right.heap ||
+	    !(left.view_info == right.view_info)) {
+		return false;
+	}
+	const auto& a = left.info;
+	const auto& b = right.info;
+	return a.data.address == b.data.address && a.data.size == b.data.size &&
+	       a.stencil.address == b.stencil.address && a.stencil.size == b.stencil.size &&
+	       a.metadata.range.address == b.metadata.range.address &&
+	       a.metadata.range.size == b.metadata.range.size && a.metadata.kind == b.metadata.kind &&
+	       a.metadata.control == b.metadata.control &&
+	       a.metadata.clear_word == b.metadata.clear_word &&
+	       a.metadata.compression == b.metadata.compression &&
+	       a.metadata.stencil_compressed == b.metadata.stencil_compressed &&
+	       a.metadata.clear_register_valid == b.metadata.clear_register_valid &&
+	       a.metadata.dcc_alpha_msb == b.metadata.dcc_alpha_msb &&
+	       a.htile_initial_clear == b.htile_initial_clear && a.pixel_format == b.pixel_format &&
+	       a.guest_format == b.guest_format && a.type == b.type &&
+	       a.extent.width == b.extent.width && a.extent.height == b.extent.height &&
+	       a.extent.depth == b.extent.depth && a.resources.levels == b.resources.levels &&
+	       a.resources.layers == b.resources.layers && a.pitch == b.pitch &&
+	       a.bytes_per_block == b.bytes_per_block && a.samples == b.samples &&
+	       a.tile_mode == b.tile_mode && a.bgra16 == b.bgra16 &&
+	       a.tiled_slice_stride == b.tiled_slice_stride &&
+	       a.linear_slice_stride == b.linear_slice_stride &&
+	       a.first_tail_level == b.first_tail_level;
+}
+
 TextureCache::BindingType TextureCache::UploadBinding(const Image& image) {
 	if (image.info.IsDepth()) {
 		if (image.info.tile_mode == Prospero::TileMode::kDepth ||
@@ -203,6 +232,7 @@ TextureCache::BindingType TextureCache::UploadBinding(const Image& image) {
 
 ImageId TextureCache::InsertImage(const ImageInfo& info) {
 	const auto id = m_slot_images.insert(m_graphics, m_scheduler, info);
+	m_image_generation++;
 	RegisterImage(id);
 	return id;
 }
@@ -229,6 +259,7 @@ void TextureCache::UnregisterImage(ImageId id) {
 	if (!image.registered) {
 		return;
 	}
+	m_image_generation++;
 	image.HeapChanged();
 	UntrackImage(id);
 	ImagePageTable::PageRange pages {};
@@ -251,6 +282,7 @@ void TextureCache::UnregisterImage(ImageId id) {
 }
 
 void TextureCache::DeleteImage(ImageId id) {
+	m_image_generation++;
 	ReleaseDepthFeedbackCopy(id);
 	auto& image = m_slot_images[id];
 	if (!image.registered) {
@@ -1356,8 +1388,25 @@ ImageId TextureCache::FindImage(ImageDesc& desc, bool exact_format) {
 	const auto metadata_base_layer = desc.view_info.base_layer;
 
 	ImageId result {};
+	const bool cacheable = desc.type == BindingType::RenderTarget ||
+	                       desc.type == BindingType::DepthTarget;
+	ImageDesc cache_request;
 	{
 		std::scoped_lock lock {m_lock};
+		if (cacheable && m_find_cache_valid && m_find_cache_exact == exact_format &&
+		    m_find_cache_generation == m_image_generation &&
+		    SameFindRequest(m_find_cache_request, desc)) {
+			auto& cached = m_slot_images[m_find_cache_id];
+			if (cached.registered) {
+				desc.view_info = m_find_cache_view;
+				cached.tick_accessed_last = m_scheduler.CurrentTick();
+				TouchImage(cached);
+				return m_find_cache_id;
+			}
+		}
+		if (cacheable) {
+			cache_request = desc;
+		}
 		const auto       candidates =
 		    FindImagesInRegion(desc.info.data.address, desc.info.data.size, false);
 		bool block_alias = false;
@@ -1460,6 +1509,17 @@ ImageId TextureCache::FindImage(ImageDesc& desc, bool exact_format) {
 		if (!native_current) {
 			EXIT("TextureCache: compressed video-out read requires clean native GPU "
 			     "contents\n");
+		}
+	}
+	if (cacheable && result) {
+		std::scoped_lock lock {m_lock};
+		if (m_slot_images[result].registered) {
+			m_find_cache_valid      = true;
+			m_find_cache_exact      = exact_format;
+			m_find_cache_request    = std::move(cache_request);
+			m_find_cache_view       = desc.view_info;
+			m_find_cache_id         = result;
+			m_find_cache_generation = m_image_generation;
 		}
 	}
 	return result;
@@ -1798,6 +1858,7 @@ void TextureCache::InvalidateMemory(uint64_t address, uint64_t size) {
 		EXIT("TextureCache: invalid memory-invalidation range\n");
 	}
 	std::scoped_lock lock {m_lock};
+	m_image_generation++;
 	InvalidateCpuAliases(address, size);
 }
 
@@ -1979,6 +2040,7 @@ void TextureCache::InvalidateMemoryFromGPU(uint64_t address, uint64_t size) {
 		return;
 	}
 	std::scoped_lock lock {m_lock};
+	m_image_generation++;
 	for (const auto id: FindImagesInRegion(address, size, true)) {
 		auto& image = m_slot_images[id];
 		if (image.info.data.address != address) {
