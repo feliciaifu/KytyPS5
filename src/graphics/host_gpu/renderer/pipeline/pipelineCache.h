@@ -119,6 +119,7 @@ struct ShaderModule {
 	ShaderRecompiler::IR::CompiledShaderInfo     info;
 	ShaderRecompiler::IR::ResourceSpecialization specialization;
 	std::vector<uint32_t>                        function_code;
+	bool                                         disable_optimization = false;
 	// VS or LS: the host format of each vertex input attribute.
 	std::vector<vk::Format>                      vertex_formats;
 	// Rectangle-list PS: the parameters it reads.

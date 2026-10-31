@@ -30,6 +30,7 @@ namespace {
 
 constexpr uint64_t AmdvlkNoOptimizationModules[] = {
     0x4fdfa9b309caa89dULL,
+    0xcec3a322152a74ceULL,
 };
 
 } // namespace
@@ -455,7 +456,7 @@ void CreatePipelineInternal(GraphicContext& graphics, PipelineCache::Pipeline& p
 
 	vk::ComputePipelineCreateInfo info {};
 	const bool amdvlk_no_optimization =
-	    std::getenv("KYTY_NOOPT_COMPUTE_ALL") != nullptr ||
+	    std::getenv("KYTY_NOOPT_COMPUTE_ALL") != nullptr || module.disable_optimization ||
 	    std::ranges::find(AmdvlkNoOptimizationModules, module.id) !=
 	        std::end(AmdvlkNoOptimizationModules);
 	if (graphics.physical_device_properties.vendorID == 0x1002u && amdvlk_no_optimization) {

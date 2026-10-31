@@ -48,6 +48,34 @@ namespace {
 
 constexpr auto DriverCacheSaveInterval = std::chrono::minutes {5};
 
+constexpr uint32_t OpCapabilityOpcode                      = 17;
+constexpr uint32_t CapabilityInt64                         = 11;
+constexpr uint32_t CapabilityGroupNonUniform               = 61;
+constexpr uint32_t CapabilityPhysicalStorageBufferAddresses = 5347;
+
+bool AmdvlkNeedsNoOptimization(std::span<const uint32_t> spirv) {
+	bool int64 = false;
+	bool group = false;
+	bool bda   = false;
+	for (size_t offset = 5; offset < spirv.size();) {
+		const uint32_t instruction = spirv[offset];
+		const uint32_t word_count  = instruction >> 16u;
+		if (word_count == 0 || offset + word_count > spirv.size()) {
+			break;
+		}
+		if ((instruction & 0xffffu) == OpCapabilityOpcode && word_count >= 2) {
+			switch (spirv[offset + 1]) {
+				case CapabilityInt64: int64 = true; break;
+				case CapabilityGroupNonUniform: group = true; break;
+				case CapabilityPhysicalStorageBufferAddresses: bda = true; break;
+				default: break;
+			}
+		}
+		offset += word_count;
+	}
+	return int64 && group && bda;
+}
+
 uint8_t RemapSourceAlphaFactor(uint8_t factor) {
 	switch (static_cast<Prospero::BlendFactor>(factor)) {
 		case Prospero::BlendFactor::kSrcAlpha:
@@ -328,6 +356,7 @@ ShaderModule& PipelineCache::CompileModule(Program& program, const ProgramKey& k
 	    .info           = std::move(info),
 	    .specialization = program.specialization,
 	    .function_code  = {function_code.begin(), function_code.end()},
+	    .disable_optimization = AmdvlkNeedsNoOptimization(result.spirv),
 	});
 	EXIT_IF(module.module == nullptr);
 	m_compiled[static_cast<size_t>(key.stage)]++;
