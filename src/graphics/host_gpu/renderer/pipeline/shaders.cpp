@@ -20,10 +20,19 @@
 #include <algorithm>
 #include <array>
 #include <bit>
+#include <cstdlib>
 #include <span>
 #include <vector>
 
 namespace Libs::Graphics {
+
+namespace {
+
+constexpr uint64_t AmdvlkNoOptimizationModules[] = {
+    0x4fdfa9b309caa89dULL,
+};
+
+} // namespace
 
 static vk::BlendFactor GetBlendFactor(uint32_t factor) {
 	switch (static_cast<Prospero::BlendFactor>(factor)) {
@@ -445,7 +454,11 @@ void CreatePipelineInternal(GraphicContext& graphics, PipelineCache::Pipeline& p
 	EXIT_NOT_IMPLEMENTED(result != vk::Result::eSuccess);
 
 	vk::ComputePipelineCreateInfo info {};
-	if (graphics.physical_device_properties.vendorID == 0x1002u) {
+	const bool amdvlk_no_optimization =
+	    std::getenv("KYTY_NOOPT_COMPUTE_ALL") != nullptr ||
+	    std::ranges::find(AmdvlkNoOptimizationModules, module.id) !=
+	        std::end(AmdvlkNoOptimizationModules);
+	if (graphics.physical_device_properties.vendorID == 0x1002u && amdvlk_no_optimization) {
 		info.flags |= vk::PipelineCreateFlagBits::eDisableOptimization;
 	}
 	if (module.info.info.uses_gds) {
