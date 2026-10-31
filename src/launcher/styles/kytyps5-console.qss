@@ -1000,11 +1000,11 @@ QToolButton#ViewToggleButton:checked {
 QPushButton#MoreButton {
 	background: #10141C;
 	border: 1px solid #1E2431;
-	border-radius: 8px;
-	min-width: 30px;
-	max-width: 30px;
-	min-height: 30px;
-	max-height: 30px;
+	border-radius: 7px;
+	min-width: 26px;
+	max-width: 26px;
+	min-height: 26px;
+	max-height: 26px;
 }
 
 QPushButton#MoreButton:hover {
