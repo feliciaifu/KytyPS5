@@ -14,6 +14,7 @@
 #include <windows.h> // IWYU pragma: keep
 // clang-format off
 #include <psapi.h>
+#include <tlhelp32.h>
 // clang-format on
 #elif defined(__APPLE__)
 #include <CoreFoundation/CoreFoundation.h>
@@ -69,6 +70,62 @@ uint64_t FileTimeTo100Ns(const FILETIME& time) {
 
 struct PlatformState {};
 
+std::string ThreadName(HANDLE thread, DWORD thread_id) {
+	PWSTR description = nullptr;
+	if (SUCCEEDED(GetThreadDescription(thread, &description)) && description != nullptr) {
+		const auto length = static_cast<int>(wcslen(description));
+		std::string name;
+		if (length > 0) {
+			const auto size = WideCharToMultiByte(CP_UTF8, 0, description, length, nullptr, 0,
+			                                      nullptr, nullptr);
+			if (size > 0) {
+				name.resize(static_cast<size_t>(size));
+				WideCharToMultiByte(CP_UTF8, 0, description, length, name.data(), size, nullptr,
+				                    nullptr);
+			}
+		}
+		LocalFree(description);
+		if (!name.empty()) {
+			return name;
+		}
+	}
+	return "thread " + std::to_string(thread_id);
+}
+
+void SampleThreads(HostStats& stats, Counters& now) {
+	const auto snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
+	if (snapshot == INVALID_HANDLE_VALUE) {
+		return;
+	}
+	const auto process_id = GetCurrentProcessId();
+	THREADENTRY32 entry {};
+	entry.dwSize = sizeof(entry);
+	uint32_t count = 0;
+	for (auto ok = Thread32First(snapshot, &entry); ok != 0; ok = Thread32Next(snapshot, &entry)) {
+		if (entry.th32OwnerProcessID != process_id) {
+			continue;
+		}
+		count++;
+		const auto thread =
+		    OpenThread(THREAD_QUERY_LIMITED_INFORMATION, FALSE, entry.th32ThreadID);
+		if (thread == nullptr) {
+			continue;
+		}
+		FILETIME creation {};
+		FILETIME exit {};
+		FILETIME kernel {};
+		FILETIME user {};
+		if (GetThreadTimes(thread, &creation, &exit, &kernel, &user) != 0) {
+			auto& value  = now.threads[entry.th32ThreadID];
+			value.cpu_ns = (FileTimeTo100Ns(kernel) + FileTimeTo100Ns(user)) * 100u;
+			value.name   = ThreadName(thread, entry.th32ThreadID);
+		}
+		CloseHandle(thread);
+	}
+	CloseHandle(snapshot);
+	stats.thread_count = count;
+}
+
 void SamplePlatform(PlatformState& /*state*/, HostStats& stats, Counters& now) {
 	const auto process = GetCurrentProcess();
 	FILETIME   creation {};
@@ -107,6 +164,7 @@ void SamplePlatform(PlatformState& /*state*/, HostStats& stats, Counters& now) {
 		                            : system.dwMemoryLoad >= 80 ? MemoryPressure::Warning
 		                                                        : MemoryPressure::Normal;
 	}
+	SampleThreads(stats, now);
 }
 
 #else
