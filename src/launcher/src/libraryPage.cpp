@@ -204,7 +204,8 @@ void LibraryPage::BuildHeader() {
 	connect(m_list_button, &QToolButton::clicked, this, [this]() { SetListMode(true); });
 
 	m_more_button = MakeIconButton(QStringLiteral("MoreButton"), QStringLiteral(":/icons/more.svg"),
-	                               QColor(QStringLiteral("#9BA4B8")), 36, this);
+	                               QColor(QStringLiteral("#9BA4B8")), 30, this);
+	m_more_button->setIconSize(QSize(14, 14));
 	connect(m_more_button, &QPushButton::clicked, this, &LibraryPage::ShowHeaderMenu);
 
 	auto* header = new QHBoxLayout;
