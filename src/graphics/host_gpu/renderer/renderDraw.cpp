@@ -871,18 +871,19 @@ static bool ResolvePrimitiveRestart(const CommandBuffer& buffer,
 }
 
 void RenderExecutor::BeginIndirectDrawBatch() {
-	if (std::getenv("KYTY_INDIRECT_BATCH_CACHE") == nullptr) {
-		return;
-	}
 	m_indirect_batch_active      = true;
 	m_indirect_batch_state_valid = false;
 	m_indirect_batch_shader.clear();
+	m_indirect_batch_context.clear();
+	m_indirect_batch_config.clear();
 }
 
 void RenderExecutor::EndIndirectDrawBatch() {
 	m_indirect_batch_active      = false;
 	m_indirect_batch_state_valid = false;
 	m_indirect_batch_shader.clear();
+	m_indirect_batch_context.clear();
+	m_indirect_batch_config.clear();
 }
 
 bool RenderExecutor::PrepareDrawRenderState(CommandBuffer& buffer, const DrawCallInfo& draw,
@@ -891,8 +892,14 @@ bool RenderExecutor::PrepareDrawRenderState(CommandBuffer& buffer, const DrawCal
 	m_context.GetImageHeap().BeginDraw();
 	if (m_indirect_batch_active && m_indirect_batch_state_valid) {
 		const auto& shader = buffer.GetShaders();
+		const auto& context = buffer.GetRegisters();
+		const auto& config = buffer.GetUserConfig();
 		if (m_indirect_batch_shader.size() == sizeof(shader) &&
-		    std::memcmp(m_indirect_batch_shader.data(), &shader, sizeof(shader)) == 0) {
+		    m_indirect_batch_context.size() == sizeof(context) &&
+		    m_indirect_batch_config.size() == sizeof(config) &&
+		    std::memcmp(m_indirect_batch_shader.data(), &shader, sizeof(shader)) == 0 &&
+		    std::memcmp(m_indirect_batch_context.data(), &context, sizeof(context)) == 0 &&
+		    std::memcmp(m_indirect_batch_config.data(), &config, sizeof(config)) == 0) {
 			state = m_indirect_batch_state;
 			return true;
 		}
@@ -953,10 +960,17 @@ bool RenderExecutor::PrepareDrawRenderState(CommandBuffer& buffer, const DrawCal
 	}
 	if (m_indirect_batch_active) {
 		const auto& shader = buffer.GetShaders();
-		m_indirect_batch_shader.assign(reinterpret_cast<const uint8_t*>(&shader),
-		                               reinterpret_cast<const uint8_t*>(&shader) + sizeof(shader));
-		m_indirect_batch_state       = state;
-		m_indirect_batch_state_valid = true;
+		const auto& context = buffer.GetRegisters();
+		const auto& config = buffer.GetUserConfig();
+		const auto  snapshot = [](const auto& value) {
+		    const auto* begin = reinterpret_cast<const uint8_t*>(&value);
+		    return std::vector<uint8_t>(begin, begin + sizeof(value));
+		};
+		m_indirect_batch_shader       = snapshot(shader);
+		m_indirect_batch_context      = snapshot(context);
+		m_indirect_batch_config       = snapshot(config);
+		m_indirect_batch_state        = state;
+		m_indirect_batch_state_valid  = true;
 	}
 
 	return true;

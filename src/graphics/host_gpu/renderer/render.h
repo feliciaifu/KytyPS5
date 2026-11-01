@@ -227,6 +227,8 @@ private:
 	bool                                 m_indirect_batch_active = false;
 	bool                                 m_indirect_batch_state_valid = false;
 	std::vector<uint8_t>                 m_indirect_batch_shader;
+	std::vector<uint8_t>                 m_indirect_batch_context;
+	std::vector<uint8_t>                 m_indirect_batch_config;
 	DrawRenderState                      m_indirect_batch_state;
 	std::vector<ImageId>                  m_bound_images;
 	std::vector<vk::DescriptorImageInfo>  m_descriptor_images;
