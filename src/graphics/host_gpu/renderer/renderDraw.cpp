@@ -37,6 +37,7 @@
 #include <bit>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <limits>
 #include <memory>
@@ -870,6 +871,9 @@ static bool ResolvePrimitiveRestart(const CommandBuffer& buffer,
 }
 
 void RenderExecutor::BeginIndirectDrawBatch() {
+	if (std::getenv("KYTY_INDIRECT_BATCH_CACHE") == nullptr) {
+		return;
+	}
 	m_indirect_batch_active      = true;
 	m_indirect_batch_state_valid = false;
 	m_indirect_batch_shader.clear();
