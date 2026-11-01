@@ -526,10 +526,6 @@ std::pair<Buffer*, uint64_t> BufferCache::ObtainBuffer(uint64_t vaddr, uint64_t 
 	}
 	auto& buffer = m_slot_buffers[id];
 	TouchBuffer(buffer);
-	if (!is_written && !is_texel_buffer &&
-	    !m_memory_tracker.IsRegionCpuModified(vaddr, size)) {
-		return {&buffer, buffer.Offset(vaddr)};
-	}
 	(void)SynchronizeBuffer(buffer, vaddr, size, is_written, is_texel_buffer);
 	if (is_written) {
 		m_gpu_modified_ranges.Add(vaddr, size);
