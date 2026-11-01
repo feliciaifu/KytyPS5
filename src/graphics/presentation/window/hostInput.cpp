@@ -12,6 +12,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdlib>
+#include <deque>
 #include <mutex>
 #include <string>
 #include <string_view>
@@ -707,6 +708,45 @@ int PollGamepadTouchPad(uint64_t now_ms) {
 }
 
 } // namespace
+
+namespace {
+
+struct InjectedInput {
+	bool pad;
+	int  first;
+	int  second;
+	bool down;
+};
+
+std::mutex           g_injected_mutex;
+std::deque<InjectedInput> g_injected;
+
+} // namespace
+
+void HostInputQueueKey(int key_code, bool down) {
+	std::scoped_lock lock(g_injected_mutex);
+	g_injected.push_back({false, key_code, 0, down});
+}
+
+void HostInputQueuePad(int id, int button, bool down) {
+	std::scoped_lock lock(g_injected_mutex);
+	g_injected.push_back({true, id, button, down});
+}
+
+void HostInputProcessInjected() {
+	std::deque<InjectedInput> pending;
+	{
+		std::scoped_lock lock(g_injected_mutex);
+		pending.swap(g_injected);
+	}
+	for (const auto& input: pending) {
+		if (input.pad) {
+			HostInputPadButton(input.first, input.second, input.down);
+		} else {
+			HostInputKey(input.first, input.down);
+		}
+	}
+}
 
 void HostInputPadButton(int id, int button, bool down) {
 	const auto  source = InputMap::SourceFromButton(button);

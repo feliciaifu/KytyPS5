@@ -747,6 +747,7 @@ void WindowContext::Run() {
 	auto               title_frames      = loop.presented_frames.load(std::memory_order_relaxed);
 
 	while (!loop.need_exit) {
+		HostInputProcessInjected();
 		if (loop.paused.load(std::memory_order_acquire)) {
 			if (!timer.IsPaused()) {
 				timer.Pause();
@@ -855,6 +856,12 @@ Presenter& WindowInit(uint32_t width, uint32_t height) {
 	auto& presenter = *window->presenter;
 	g_window        = std::move(window);
 	return presenter;
+}
+
+uint32_t WindowGetSdlId() {
+	return g_window != nullptr && g_window->window != nullptr
+	           ? static_cast<uint32_t>(SDL_GetWindowID(g_window->window))
+	           : 0;
 }
 
 void WindowRun() {

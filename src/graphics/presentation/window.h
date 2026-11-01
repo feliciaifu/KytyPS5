@@ -9,6 +9,7 @@ namespace Libs::Graphics {
 class Presenter;
 
 [[nodiscard]] Presenter& WindowInit(uint32_t width, uint32_t height);
+[[nodiscard]] uint32_t   WindowGetSdlId();
 void                     WindowRun();
 void                     WindowShutdown();
 

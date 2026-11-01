@@ -22,6 +22,9 @@ struct HostInputTouchPadVisualState {
 void               HostInputInit(SDL_Window* window);
 void               HostInputShutdown();
 void               HostInputKey(int key_code, bool down);
+void               HostInputQueueKey(int key_code, bool down);
+void               HostInputQueuePad(int id, int button, bool down);
+void               HostInputProcessInjected();
 void               HostInputMouseButton(uint8_t mouse_button, bool down);
 void               HostInputMouseTouchPad(bool down, float x, float y);
 void               HostInputMouseMotion(float x, float y);
