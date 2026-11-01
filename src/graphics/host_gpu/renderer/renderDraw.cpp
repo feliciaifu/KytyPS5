@@ -872,11 +872,13 @@ static bool ResolvePrimitiveRestart(const CommandBuffer& buffer,
 void RenderExecutor::BeginIndirectDrawBatch() {
 	m_indirect_batch_active      = true;
 	m_indirect_batch_state_valid = false;
+	m_indirect_batch_shader.clear();
 }
 
 void RenderExecutor::EndIndirectDrawBatch() {
 	m_indirect_batch_active      = false;
 	m_indirect_batch_state_valid = false;
+	m_indirect_batch_shader.clear();
 }
 
 bool RenderExecutor::PrepareDrawRenderState(CommandBuffer& buffer, const DrawCallInfo& draw,
@@ -884,8 +886,12 @@ bool RenderExecutor::PrepareDrawRenderState(CommandBuffer& buffer, const DrawCal
 	                                        DrawRenderState& state) {
 	m_context.GetImageHeap().BeginDraw();
 	if (m_indirect_batch_active && m_indirect_batch_state_valid) {
-		state = m_indirect_batch_state;
-		return true;
+		const auto& shader = buffer.GetShaders();
+		if (m_indirect_batch_shader.size() == sizeof(shader) &&
+		    std::memcmp(m_indirect_batch_shader.data(), &shader, sizeof(shader)) == 0) {
+			state = m_indirect_batch_state;
+			return true;
+		}
 	}
 	if (draw.IsIndexed()) {
 		LogDrawPhase(draw.Name(), "GetGraphicsPrograms");
@@ -942,6 +948,9 @@ bool RenderExecutor::PrepareDrawRenderState(CommandBuffer& buffer, const DrawCal
 		return false;
 	}
 	if (m_indirect_batch_active) {
+		const auto& shader = buffer.GetShaders();
+		m_indirect_batch_shader.assign(reinterpret_cast<const uint8_t*>(&shader),
+		                               reinterpret_cast<const uint8_t*>(&shader) + sizeof(shader));
 		m_indirect_batch_state       = state;
 		m_indirect_batch_state_valid = true;
 	}

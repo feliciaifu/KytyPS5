@@ -226,6 +226,7 @@ private:
 	PreparedBindings                     m_compute_bindings;
 	bool                                 m_indirect_batch_active = false;
 	bool                                 m_indirect_batch_state_valid = false;
+	std::vector<uint8_t>                 m_indirect_batch_shader;
 	DrawRenderState                      m_indirect_batch_state;
 	std::vector<ImageId>                  m_bound_images;
 	std::vector<vk::DescriptorImageInfo>  m_descriptor_images;
