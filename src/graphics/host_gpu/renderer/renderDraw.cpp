@@ -869,10 +869,24 @@ static bool ResolvePrimitiveRestart(const CommandBuffer& buffer,
 	return false;
 }
 
+void RenderExecutor::BeginIndirectDrawBatch() {
+	m_indirect_batch_active      = true;
+	m_indirect_batch_state_valid = false;
+}
+
+void RenderExecutor::EndIndirectDrawBatch() {
+	m_indirect_batch_active      = false;
+	m_indirect_batch_state_valid = false;
+}
+
 bool RenderExecutor::PrepareDrawRenderState(CommandBuffer& buffer, const DrawCallInfo& draw,
                                             uint32_t            render_target_slice_offset,
 	                                        DrawRenderState& state) {
 	m_context.GetImageHeap().BeginDraw();
+	if (m_indirect_batch_active && m_indirect_batch_state_valid) {
+		state = m_indirect_batch_state;
+		return true;
+	}
 	if (draw.IsIndexed()) {
 		LogDrawPhase(draw.Name(), "GetGraphicsPrograms");
 	}
@@ -926,6 +940,10 @@ bool RenderExecutor::PrepareDrawRenderState(CommandBuffer& buffer, const DrawCal
 		LogFramebufferSkip(draw.Name(), state.color_info[0], state.depth_info, buffer,
 		                   draw.index_count, 0);
 		return false;
+	}
+	if (m_indirect_batch_active) {
+		m_indirect_batch_state       = state;
+		m_indirect_batch_state_valid = true;
 	}
 
 	return true;

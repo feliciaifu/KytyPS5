@@ -166,6 +166,8 @@ public:
 	                      uint32_t mode, bool async_compute);
 	void ProcessPssr(CommandBuffer& buffer, const Pssr::Request& request);
 
+	void BeginIndirectDrawBatch();
+	void EndIndirectDrawBatch();
 	void PrepareBindings(const ShaderStageRuntime& runtime, PreparedBindings& prepared);
 	void                           FindBuffers(std::span<PreparedBindings* const> stages);
 	void                           RebindBuffers(PreparedBindings& bindings);
@@ -222,6 +224,9 @@ private:
 	RenderContext&                        m_context;
 	GraphicsBindings                     m_graphics_bindings;
 	PreparedBindings                     m_compute_bindings;
+	bool                                 m_indirect_batch_active = false;
+	bool                                 m_indirect_batch_state_valid = false;
+	DrawRenderState                      m_indirect_batch_state;
 	std::vector<ImageId>                  m_bound_images;
 	std::vector<vk::DescriptorImageInfo>  m_descriptor_images;
 	std::vector<vk::WriteDescriptorSet>   m_descriptor_writes;
